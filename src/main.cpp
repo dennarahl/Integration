@@ -1,5 +1,9 @@
 #include <Arduino.h>
 #include <NewPing.h>
+#include <Wire.h>
+#include <SPI.h>
+#include <Adafruit_LIS3DH.h>
+#include <Adafruit_Sensor.h>
 #include "NostromoPinsAndGlobals.h"
 #include "SGUltrasonic.h"
 
@@ -22,21 +26,32 @@ const int run_time = 2000; // Riv: Duration
 int Lspeed = 255;          // Riv: straight_A
 int Rspeed = 255;          // Riv: straight_B
 
+// Accelerometer (IMU) LIS3DH variables
+Adafruit_LIS3DH lis = Adafruit_LIS3DH();
+int counter = 0;
+float moving_x1 = 0;
+float moving_x2 = 0;
+float moving_y1 = 0;
+float moving_y2 = 0;
+const float xmoved = .2;
+const float ymoved = .2;
+
 // put function declarations here:
 void Forward();
 void Reverse(int Duration);
 void Stop();
 void RotateRight(int Duration);
 void RotateLeft(int Duration);
+void IMU_Setup();
+bool are_we_moving();
 
-void setup()
+void setup() // put your setup code here, to run once:
 {
-  // put your setup code here, to run once:
-
   // start serial communication for debugging/testing
   Serial.begin(9600);
 
-  // set pins as outputs
+  // MOTOR STUFF
+  //  set pins as outputs
   pinMode(RSmotorPin1, OUTPUT);
   pinMode(RSmotorPin2, OUTPUT);
   pinMode(RSenablePin, OUTPUT);
@@ -52,8 +67,12 @@ void setup()
   ledcAttachPin(RSenablePin, RSpwmChannel);
   ledcAttachPin(LSenablePin, LSpwmChannel);
 
-  // Testing
-  Serial.println("Testing DC Motor...");
+  // Accelerometer (IMU) LIS3DH stuff
+  delay(10000);
+  IMU_Setup();
+
+  // for Testing
+  // Serial.println("Testing DC Motor...");
 }
 
 //
@@ -64,13 +83,17 @@ void setup()
 
 void loop()
 {
-  // delay(2500);
+  // Serial.println("in loop");
+  // delay(2000);
+  // counter = counter +1;
+
   unsigned int stop_or_go = is_to_close();
   if (stop_or_go == 1)
   {
     Serial.println("STOP");
     Serial.println("Motor stopped");
     Stop();
+    are_we_moving();
     // delay(100);        //only for testing
   }
   else
@@ -78,6 +101,7 @@ void loop()
     Serial.println("Go");
     Serial.println("Moving Forward");
     Forward();
+    are_we_moving();
     // delay(100);        //only for testing
   }
   Serial.println("loop end");
@@ -91,6 +115,8 @@ void loop()
 //
 
 // put function definitions here:
+
+// Motor Functions
 void Forward()
 {
   // Function to drive forward for amount of time Duration
@@ -186,4 +212,80 @@ void RotateLeft(int Duration)
   digitalWrite(LSmotorPin1, HIGH);
   digitalWrite(LSmotorPin2, LOW);
   delay(Duration);
+}
+
+//
+//
+//
+//
+//
+
+// Accelerometer (IMU) LIS3DH functions
+void IMU_Setup()
+{
+  while (!Serial)
+    delay(10); // will pause Zero, Leonardo, etc until serial console opens
+
+  // Serial.println("LIS3DH test!");
+
+  if (!lis.begin(0x18)) //{  change this to 0x19 for alternative i2c address
+  {
+    Serial.println("Couldnt start");
+    while (1)
+      yield();
+  }
+  Serial.println("LIS3DH found!");
+
+  lis.setRange(LIS3DH_RANGE_2_G); // 2, 4, 8 or 16 G!
+
+  Serial.print("Range = ");
+  Serial.print(2 << lis.getRange());
+  Serial.println("G");
+
+  lis.setDataRate(LIS3DH_DATARATE_50_HZ);
+}
+
+// just a note  true=1 false=0
+bool are_we_moving()
+{
+  /* Or....get a new sensor event, normalized */
+  sensors_event_t event;
+  lis.getEvent(&event);
+
+  // Display the results (acceleration is measured in m/s^2)
+  moving_x1 = event.acceleration.x;
+  Serial.print("\t\tX: ");
+  Serial.print(event.acceleration.x);
+  moving_y1 = event.acceleration.y;
+  Serial.print(" \tY: ");
+  Serial.print(event.acceleration.y);
+  // Serial.print(" \tZ: ");
+  // Serial.print(event.acceleration.z);
+  // Serial.println(" m/s^2 ");
+
+  delay(200);
+  lis.getEvent(&event);
+
+  moving_x2 = event.acceleration.x;
+  Serial.print("\t\tX: ");
+  Serial.print(event.acceleration.x);
+  moving_y2 = event.acceleration.y;
+  Serial.print(" \tY: ");
+  Serial.print(event.acceleration.y);
+
+  if (abs(moving_x2 - moving_x1) > xmoved) // or (moving_x2 - moving_x1 < -xmoved))
+  {
+    Serial.println("moving in X");
+    return true;
+  }
+  else if (abs(moving_y2 - moving_y1) > ymoved) // or (moving_y2 - moving_y1 < -ymoved))
+  {
+    Serial.println("moving in Y");
+    return true;
+  }
+  else
+  {
+    Serial.println("NOT MOVING");
+    return false;
+  }
 }
