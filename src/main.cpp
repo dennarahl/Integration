@@ -3,6 +3,7 @@
 #include <Wire.h>
 #include <SPI.h>
 #include <Adafruit_LIS3DH.h>
+#include <Adafruit_LIS3MDL.h>
 #include <Adafruit_Sensor.h>
 #include "NostromoPinsAndGlobals.h"
 #include "SGUltrasonic.h"
@@ -35,6 +36,14 @@ float moving_y1 = 0;
 float moving_y2 = 0;
 const float xmoved = .2;
 const float ymoved = .2;
+float heading = 0;
+
+// compass variables (this is based on location)
+Adafruit_LIS3MDL lis3mdl;
+const float declinationAngle = 7.6666666667; // Westminster
+//  const float declinationAngle = 7.25;              //Tinkermill and Sand Dunes
+//  const float declinationAngle = 7.566666667;       //Brighton
+//  const float declinationAngle = 7.283333333;       //Strasburg
 
 // put function declarations here:
 void Forward();
@@ -44,6 +53,9 @@ void RotateRight(int Duration);
 void RotateLeft(int Duration);
 void IMU_Setup();
 bool are_we_moving();
+void Compass_Setup();
+void cardinalDir(float headingDegrees);
+float faceing_direction();
 
 void setup() // put your setup code here, to run once:
 {
@@ -70,7 +82,7 @@ void setup() // put your setup code here, to run once:
   // Accelerometer (IMU) LIS3DH stuff
   delay(10000);
   IMU_Setup();
-
+  Compass_Setup();
   // for Testing
   // Serial.println("Testing DC Motor...");
 }
@@ -78,20 +90,19 @@ void setup() // put your setup code here, to run once:
 //
 //
 //
-//
-//
 
 void loop()
 {
   // Serial.println("in loop");
-  // delay(2000);
+  delay(2000);
   // counter = counter +1;
+
+  heading = faceing_direction();
 
   unsigned int stop_or_go = is_to_close();
   if (stop_or_go == 1)
   {
     Serial.println("STOP");
-    Serial.println("Motor stopped");
     Stop();
     are_we_moving();
     // delay(100);        //only for testing
@@ -99,12 +110,11 @@ void loop()
   else
   {
     Serial.println("Go");
-    Serial.println("Moving Forward");
     Forward();
     are_we_moving();
     // delay(100);        //only for testing
   }
-  Serial.println("loop end");
+  // Serial.println("loop end");
   Serial.println("");
 }
 
@@ -120,7 +130,7 @@ void loop()
 void Forward()
 {
   // Function to drive forward for amount of time Duration
-  Serial.print("Forward function ");
+  // Serial.print("Forward function ");
   // Side A spins clockwise
   digitalWrite(RSmotorPin1, LOW);
   digitalWrite(RSmotorPin2, HIGH);
@@ -132,8 +142,6 @@ void Forward()
   // analogWrite(LSenablePin, pwm_L);
 }
 
-//
-//
 //
 //
 //
@@ -157,8 +165,6 @@ void Reverse(int Duration)
 //
 //
 //
-//
-//
 
 void Stop()
 {
@@ -171,8 +177,6 @@ void Stop()
   digitalWrite(LSmotorPin2, LOW);
 }
 
-//
-//
 //
 //
 //
@@ -195,8 +199,6 @@ void RotateRight(int Duration)
 //
 //
 //
-//
-//
 
 void RotateLeft(int Duration)
 {
@@ -214,8 +216,6 @@ void RotateLeft(int Duration)
   delay(Duration);
 }
 
-//
-//
 //
 //
 //
@@ -245,7 +245,10 @@ void IMU_Setup()
   lis.setDataRate(LIS3DH_DATARATE_50_HZ);
 }
 
+//
 // just a note  true=1 false=0
+//
+
 bool are_we_moving()
 {
   /* Or....get a new sensor event, normalized */
@@ -253,12 +256,14 @@ bool are_we_moving()
   lis.getEvent(&event);
 
   // Display the results (acceleration is measured in m/s^2)
+
   moving_x1 = event.acceleration.x;
-  Serial.print("\t\tX: ");
-  Serial.print(event.acceleration.x);
+  // Serial.print("\t\tX: ");
+  // Serial.print(event.acceleration.x);
   moving_y1 = event.acceleration.y;
-  Serial.print(" \tY: ");
-  Serial.print(event.acceleration.y);
+  // Serial.print(" \tY: ");
+  // Serial.print(event.acceleration.y);
+
   // Serial.print(" \tZ: ");
   // Serial.print(event.acceleration.z);
   // Serial.println(" m/s^2 ");
@@ -267,11 +272,11 @@ bool are_we_moving()
   lis.getEvent(&event);
 
   moving_x2 = event.acceleration.x;
-  Serial.print("\t\tX: ");
-  Serial.print(event.acceleration.x);
+  // Serial.print("\t\tX: ");
+  // Serial.print(event.acceleration.x);
   moving_y2 = event.acceleration.y;
-  Serial.print(" \tY: ");
-  Serial.print(event.acceleration.y);
+  // Serial.print(" \tY: ");
+  // Serial.print(event.acceleration.y);
 
   if (abs(moving_x2 - moving_x1) > xmoved) // or (moving_x2 - moving_x1 < -xmoved))
   {
@@ -288,4 +293,137 @@ bool are_we_moving()
     Serial.println("NOT MOVING");
     return false;
   }
+}
+
+//
+//
+//
+
+void Compass_Setup()
+{
+  // Serial.println("Adafruit LIS3MDL test!");
+
+  // Try to initialize!
+  if (!lis3mdl.begin_I2C())
+  {
+    Serial.println("Failed to find LIS3MDL chip");
+    while (1)
+    {
+      delay(10);
+    }
+  }
+  Serial.println("LIS3MDL Found!");
+
+  lis3mdl.setPerformanceMode(LIS3MDL_MEDIUMMODE);
+  lis3mdl.setOperationMode(LIS3MDL_CONTINUOUSMODE);
+  lis3mdl.setDataRate(LIS3MDL_DATARATE_155_HZ);
+  lis3mdl.setRange(LIS3MDL_RANGE_4_GAUSS);
+  lis3mdl.setIntThreshold(500);
+  lis3mdl.configInterrupt(false, false, true, // enable z axis
+                          true,               // polarity
+                          false,              // don't latch
+                          true);              // enabled!
+}
+
+//
+//
+//
+
+void cardinalDir(float headingDegrees)
+{
+  String cardinal;
+  if (headingDegrees > 348.75 || headingDegrees < 11.25)
+  {
+    cardinal = " N";
+  }
+  else if (headingDegrees > 11.25 && headingDegrees < 33.75)
+  {
+    cardinal = " NNE";
+  }
+  else if (headingDegrees > 33.75 && headingDegrees < 56.25)
+  {
+    cardinal = " NE";
+  }
+  else if (headingDegrees > 56.25 && headingDegrees < 78.75)
+  {
+    cardinal = " ENE";
+  }
+  else if (headingDegrees > 78.75 && headingDegrees < 101.25)
+  {
+    cardinal = " E";
+  }
+  else if (headingDegrees > 101.25 && headingDegrees < 123.75)
+  {
+    cardinal = " ESE";
+  }
+  else if (headingDegrees > 123.75 && headingDegrees < 146.25)
+  {
+    cardinal = " SE";
+  }
+  else if (headingDegrees > 146.25 && headingDegrees < 168.75)
+  {
+    cardinal = " SSE";
+  }
+  else if (headingDegrees > 168.75 && headingDegrees < 191.25)
+  {
+    cardinal = " S";
+  }
+  else if (headingDegrees > 191.25 && headingDegrees < 213.75)
+  {
+    cardinal = " SSW";
+  }
+  else if (headingDegrees > 213.75 && headingDegrees < 236.25)
+  {
+    cardinal = " SW";
+  }
+  else if (headingDegrees > 236.25 && headingDegrees < 258.75)
+  {
+    cardinal = " WSW";
+  }
+  else if (headingDegrees > 258.75 && headingDegrees < 281.25)
+  {
+    cardinal = " W";
+  }
+  else if (headingDegrees > 281.25 && headingDegrees < 303.75)
+  {
+    cardinal = " WNW";
+  }
+  else if (headingDegrees > 303.75 && headingDegrees < 326.25)
+  {
+    cardinal = " NW";
+  }
+  else if (headingDegrees > 326.25 && headingDegrees < 348.75)
+  {
+    cardinal = " NNW";
+  }
+  Serial.println(cardinal);
+}
+
+//
+//
+//
+
+float faceing_direction()
+{
+  // Serial.println("faceing dir function");
+  /* Or....get a new sensor event, normalized to uTesla */
+  sensors_event_t event;
+  lis3mdl.getEvent(&event);
+
+  float headingRadians = atan2(event.magnetic.y, event.magnetic.x);
+  float headingDeg = headingRadians * 180 / PI;
+
+  headingDeg += declinationAngle;
+
+  if (headingDeg < 0)
+  {
+    headingDeg += 360;
+  }
+
+  Serial.print("HeadingDeg fixed: ");
+  Serial.print(headingDeg);
+  cardinalDir(headingDeg);
+
+  delay(2000);
+  return headingDeg;
 }
