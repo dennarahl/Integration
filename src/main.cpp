@@ -5,6 +5,8 @@
 #include <Adafruit_LIS3DH.h>
 #include <Adafruit_LIS3MDL.h>
 #include <Adafruit_Sensor.h>
+#include <SparkFun_VL53L5CX_Library.h>
+#include <cmath>
 #include "NostromoPinsAndGlobals.h"
 #include "SGUltrasonic.h"
 
@@ -45,6 +47,12 @@ const float declinationAngle = 7.6666666667; // Westminster
 //  const float declinationAngle = 7.566666667;       //Brighton
 //  const float declinationAngle = 7.283333333;       //Strasburg
 
+// other globals
+const byte numChars = 32;
+char receivedChars[numChars];
+boolean newData = false;
+float ultimate_direction = 0;
+
 // put function declarations here:
 void Forward();
 void Reverse(int Duration);
@@ -55,7 +63,11 @@ void IMU_Setup();
 bool are_we_moving();
 void Compass_Setup();
 void cardinalDir(float headingDegrees);
-float faceing_direction();
+float facing_direction();
+void get_input();
+void show_input();
+void do_turn(char receivedChars[numChars]);
+int round_to_15(float temp);
 
 void setup() // put your setup code here, to run once:
 {
@@ -97,14 +109,16 @@ void loop()
   delay(2000);
   // counter = counter +1;
 
-  heading = faceing_direction();
-
   unsigned int stop_or_go = is_to_close();
   if (stop_or_go == 1)
   {
-    Serial.println("STOP");
     Stop();
-    are_we_moving();
+    Serial.print("Turn in degrees, left is negative, right positive: ");
+    get_input();
+    show_input();
+    delay(100);
+    do_turn(receivedChars);
+    //  are_we_moving();
     // delay(100);        //only for testing
   }
   else
@@ -118,8 +132,6 @@ void loop()
   Serial.println("");
 }
 
-//
-//
 //
 //
 //
@@ -181,46 +193,43 @@ void Stop()
 //
 //
 
-void RotateRight(int Duration)
+void RotateRight() // int Duration)
 {
   // Function to drive right rotation for amount of time Duration
-  Serial.print("RotateRight for ");
-  Serial.print(Duration / 1000);
-  Serial.println(" seconds");
-  // Side A spins counterclockwise
+  Serial.print("Rotating right.   ");
+  // Serial.print(Duration / 1000);
+  // Serial.println(" seconds");
+  //  Side A spins counterclockwise
   digitalWrite(RSmotorPin1, HIGH);
   digitalWrite(RSmotorPin2, LOW);
   // Side B spins clockwise
   digitalWrite(LSmotorPin1, LOW);
   digitalWrite(LSmotorPin2, HIGH);
-  delay(Duration);
+  // delay(Duration);
 }
 
 //
 //
 //
 
-void RotateLeft(int Duration)
+void RotateLeft() // int Duration)
 {
-  // Function to drive left rotation for amount of time Duration
-
-  Serial.print("RotateLeft for ");
-  Serial.print(Duration / 1000);
-  Serial.println(" seconds");
+  Serial.print("Rotating Left.   ");
+  // Serial.print(Duration / 1000);
+  // Serial.println(" seconds");
   // Side A spins clockwise
   digitalWrite(RSmotorPin1, LOW);
   digitalWrite(RSmotorPin2, HIGH);
   // Side B spins counterclockwise
   digitalWrite(LSmotorPin1, HIGH);
   digitalWrite(LSmotorPin2, LOW);
-  delay(Duration);
+  // delay(Duration);
 }
 
 //
 //
-//
-
 // Accelerometer (IMU) LIS3DH functions
+
 void IMU_Setup()
 {
   while (!Serial)
@@ -332,7 +341,7 @@ void Compass_Setup()
 void cardinalDir(float headingDegrees)
 {
   String cardinal;
-  if (headingDegrees > 348.75 || headingDegrees < 11.25)
+  if (headingDegrees > -11.25 && headingDegrees < 11.25)
   {
     cardinal = " N";
   }
@@ -364,35 +373,35 @@ void cardinalDir(float headingDegrees)
   {
     cardinal = " SSE";
   }
-  else if (headingDegrees > 168.75 && headingDegrees < 191.25)
+  else if (headingDegrees > 168.75 && headingDegrees < -168.75)
   {
     cardinal = " S";
   }
-  else if (headingDegrees > 191.25 && headingDegrees < 213.75)
+  else if (headingDegrees > -168.75 && headingDegrees < -146.25)
   {
     cardinal = " SSW";
   }
-  else if (headingDegrees > 213.75 && headingDegrees < 236.25)
+  else if (headingDegrees > -146.25 && headingDegrees < -123.75)
   {
     cardinal = " SW";
   }
-  else if (headingDegrees > 236.25 && headingDegrees < 258.75)
+  else if (headingDegrees > -123.75 && headingDegrees < -101.25)
   {
     cardinal = " WSW";
   }
-  else if (headingDegrees > 258.75 && headingDegrees < 281.25)
+  else if (headingDegrees > -101.25 && headingDegrees < -78.75)
   {
     cardinal = " W";
   }
-  else if (headingDegrees > 281.25 && headingDegrees < 303.75)
+  else if (headingDegrees > -78.75 && headingDegrees < -56.25)
   {
     cardinal = " WNW";
   }
-  else if (headingDegrees > 303.75 && headingDegrees < 326.25)
+  else if (headingDegrees > -56.25 && headingDegrees < -33.75)
   {
     cardinal = " NW";
   }
-  else if (headingDegrees > 326.25 && headingDegrees < 348.75)
+  else if (headingDegrees > -33.75 && headingDegrees < -11.25)
   {
     cardinal = " NNW";
   }
@@ -403,9 +412,9 @@ void cardinalDir(float headingDegrees)
 //
 //
 
-float faceing_direction()
+float facing_direction()
 {
-  // Serial.println("faceing dir function");
+  // Serial.println("facing dir function");
   /* Or....get a new sensor event, normalized to uTesla */
   sensors_event_t event;
   lis3mdl.getEvent(&event);
@@ -415,15 +424,136 @@ float faceing_direction()
 
   headingDeg += declinationAngle;
 
-  if (headingDeg < 0)
-  {
-    headingDeg += 360;
-  }
+  // if (headingDeg < 0)
+  //{
+  // headingDeg += 360;
+  //}
 
-  Serial.print("HeadingDeg fixed: ");
+  Serial.print("Current HeadingDeg: ");
   Serial.print(headingDeg);
   cardinalDir(headingDeg);
 
   delay(2000);
   return headingDeg;
+}
+
+//
+//
+//
+
+void get_input()
+{
+  static byte ndx = 0;
+  char endMarker = '\n';
+  char rc;
+
+  while (Serial.available() < 3)
+  {
+    delay(1000);
+    // Serial.println("waiting for data");
+  }
+  delay(1000);
+  while (Serial.available() > 0 && newData == false)
+  {
+    rc = Serial.read();
+    Serial.println();
+    Serial.print("numChars: ");
+    Serial.print(numChars);
+    Serial.print(" rc: ");
+    Serial.print(rc);
+    Serial.print(" ndx: ");
+    Serial.print(ndx);
+    Serial.print(" newData: ");
+    Serial.print(newData);
+    if (rc != endMarker)
+    {
+      receivedChars[ndx] = rc;
+      Serial.print(" receivedChars[ndx]: ");
+      Serial.print(receivedChars[ndx]);
+      ndx++;
+      Serial.print(" ndx: ");
+      Serial.println(ndx);
+      if (ndx >= numChars)
+      {
+        ndx = numChars - 1;
+      }
+    }
+    else
+    {
+      Serial.println();
+      Serial.println("In the else section, because end char");
+      receivedChars[ndx] = '\0'; // terminate the string
+      ndx = 0;
+      newData = true;
+    }
+  }
+}
+
+//
+//
+//
+
+void show_input()
+{
+  if (newData == true)
+  {
+    Serial.println(receivedChars);
+    newData = false;
+  }
+}
+
+//
+//
+// left is negative, right is positive.
+
+void do_turn(char receivedChars[])
+{
+  int val = atoi(receivedChars);
+  if (val > 90 || val < -90)
+  {
+    Serial.println("Outside allowable range.");
+    return;
+  }
+  val = round_to_15(val);
+  Serial.print("do_turn val (rounded to nearest 15): ");
+  Serial.println(val);
+  heading = facing_direction();
+  int new_heading = heading + val;
+  Serial.print("New heading is: ");
+  Serial.println(new_heading);
+  if (val < 0)
+  {
+    do
+    {
+      RotateLeft();
+      heading = facing_direction();
+    } while (heading > new_heading);
+  }
+  else
+  {
+    do
+    {
+      RotateRight();
+      heading = facing_direction();
+    } while (heading < new_heading);
+  }
+}
+
+//
+//
+//
+
+int round_to_15(float temp)
+{
+  int num_to_fix = round(temp);
+  int multiple = 15;
+
+  int remainder = abs(num_to_fix) % multiple;
+  if (remainder == 0)
+    return num_to_fix;
+
+  if (num_to_fix < 0)
+    return -(abs(num_to_fix) - remainder);
+  else
+    return num_to_fix + multiple - remainder;
 }
