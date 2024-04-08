@@ -456,6 +456,7 @@ void get_input()
   while (Serial.available() > 0 && newData == false)
   {
     rc = Serial.read();
+    /*
     Serial.println();
     Serial.print("numChars: ");
     Serial.print(numChars);
@@ -465,6 +466,7 @@ void get_input()
     Serial.print(ndx);
     Serial.print(" newData: ");
     Serial.print(newData);
+    */
     if (rc != endMarker)
     {
       receivedChars[ndx] = rc;
@@ -480,8 +482,8 @@ void get_input()
     }
     else
     {
-      Serial.println();
-      Serial.println("In the else section, because end char");
+      // Serial.println();
+      // Serial.println("In the else section, because end char");
       receivedChars[ndx] = '\0'; // terminate the string
       ndx = 0;
       newData = true;
@@ -519,6 +521,11 @@ void do_turn(char receivedChars[])
   Serial.println(val);
   heading = facing_direction();
   int new_heading = heading + val;
+
+  if (new_heading > 180)
+  {
+    new_heading = new_heading - 360; // converts to neg ver of number (which is what the sensor is using for 180-360)
+  }
   Serial.print("New heading is: ");
   Serial.println(new_heading);
   if (val < 0)
