@@ -26,8 +26,8 @@ const int RSpwmChannel = 0;
 const int LSpwmChannel = 0;
 const int resolution = 8;
 const int run_time = 2000; // Riv: Duration
-int Lspeed = 255;          // Riv: straight_A
-int Rspeed = 255;          // Riv: straight_B
+int Lspeed = 150;          // Riv: straight_A
+int Rspeed = 150;          // Riv: straight_B
 
 // Accelerometer (IMU) LIS3DH variables
 Adafruit_LIS3DH lis = Adafruit_LIS3DH();
@@ -92,7 +92,7 @@ void setup() // put your setup code here, to run once:
   ledcAttachPin(LSenablePin, LSpwmChannel);
 
   // Accelerometer (IMU) LIS3DH stuff
-  delay(10000);
+  delay(5000);
   IMU_Setup();
   Compass_Setup();
   // for Testing
@@ -106,7 +106,7 @@ void setup() // put your setup code here, to run once:
 void loop()
 {
   // Serial.println("in loop");
-  delay(2000);
+  // delay(2000);
   // counter = counter +1;
 
   unsigned int stop_or_go = is_to_close();
@@ -125,8 +125,8 @@ void loop()
   {
     Serial.println("Go");
     Forward();
-    are_we_moving();
-    // delay(100);        //only for testing
+    // are_we_moving();
+    //  delay(100);        //only for testing
   }
   // Serial.println("loop end");
   Serial.println("");
@@ -149,6 +149,7 @@ void Forward()
   // Side B spins clockwise
   digitalWrite(LSmotorPin1, LOW);
   digitalWrite(LSmotorPin2, HIGH);
+  heading = facing_direction();
   // pwm yippee (S: not needed because of the way I setup)
   // analogWrite(RSenablePin, pwm_R);
   // analogWrite(LSenablePin, pwm_L);
@@ -171,7 +172,7 @@ void Reverse(int Duration)
   // Side B spins counterclockwise
   digitalWrite(LSmotorPin1, HIGH);
   digitalWrite(LSmotorPin2, LOW);
-  delay(Duration);
+  // delay(Duration);
 }
 
 //
@@ -277,7 +278,7 @@ bool are_we_moving()
   // Serial.print(event.acceleration.z);
   // Serial.println(" m/s^2 ");
 
-  delay(200);
+  // delay(200);
   lis.getEvent(&event);
 
   moving_x2 = event.acceleration.x;
@@ -433,7 +434,7 @@ float facing_direction()
   Serial.print(headingDeg);
   cardinalDir(headingDeg);
 
-  delay(2000);
+  // delay(2000);
   return headingDeg;
 }
 
