@@ -26,8 +26,8 @@ const int RSpwmChannel = 0;
 const int LSpwmChannel = 0;
 const int resolution = 8;
 const int run_time = 2000; // Riv: Duration
-int Lspeed = 150;          // Riv: straight_A
-int Rspeed = 150;          // Riv: straight_B
+int Lspeed = 255;          // Riv: straight_A
+int Rspeed = 255;          // Riv: straight_B
 
 // Accelerometer (IMU) LIS3DH variables
 Adafruit_LIS3DH lis = Adafruit_LIS3DH();
